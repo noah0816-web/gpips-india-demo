@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import re
 import tempfile
 from dataclasses import dataclass
@@ -11,7 +12,7 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 
 
-DEFAULT_ZIP = Path("/Users/sjmizhangjingjing/Downloads/GPIPS系统数据库与知识库.zip")
+DEFAULT_ZIP = Path("data/GPIPS系统数据库与知识库.zip")
 
 XLSX_NS = {
     "a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
@@ -32,10 +33,11 @@ class SourceFiles:
 
 def extract_source(zip_path: Path = DEFAULT_ZIP) -> SourceFiles:
     if not zip_path.exists():
-        raise FileNotFoundError(f"Source zip not found: {zip_path}")
+        raise FileNotFoundError("Source ZIP is not available. Upload the GPIPS source ZIP from the sidebar.")
 
-    target = Path(tempfile.gettempdir()) / "gpips_india_demo_source"
-    if not target.exists() or not any(target.rglob("*")):
+    digest = hashlib.sha256(zip_path.read_bytes()).hexdigest()[:12]
+    target = Path(tempfile.gettempdir()) / f"gpips_india_demo_source_{digest}"
+    if not target.exists() or not list(target.rglob("*.xlsx")):
         target.mkdir(parents=True, exist_ok=True)
         with ZipFile(zip_path) as zf:
             zf.extractall(target)

@@ -8,11 +8,7 @@ The demo shows a guided flow:
 Data Layer -> Knowledge Layer -> Insight Engine -> Opportunity Pool -> Recommendation
 ```
 
-It reads the provided ZIP file locally:
-
-```text
-/Users/sjmizhangjingjing/Downloads/GPIPS系统数据库与知识库.zip
-```
+It reads the provided ZIP file through the Streamlit sidebar uploader.
 
 ## Run
 
@@ -32,13 +28,15 @@ http://127.0.0.1:8501
 
 ## Data
 
-By default, the app reads:
+By default, the app expects the ZIP to be uploaded from the Streamlit sidebar.
+
+On Streamlit Cloud, use the sidebar uploader:
 
 ```text
-/Users/sjmizhangjingjing/Downloads/GPIPS系统数据库与知识库.zip
+Upload source zip -> select GPIPS系统数据库与知识库.zip
 ```
 
-If another machine runs the demo, put the ZIP anywhere locally and update the `Source zip` field in the Streamlit sidebar.
+The app will parse the uploaded ZIP in a temporary runtime directory.
 
 ## Demo Story
 

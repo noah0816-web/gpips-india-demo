@@ -73,6 +73,39 @@ def brand_distribution(ratings: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def _matrix_brands(product_matrix: pd.DataFrame, limit: int = 5) -> list[str]:
+    if product_matrix.empty or "brand" not in product_matrix:
+        return []
+    brands = (
+        product_matrix["brand"]
+        .astype(str)
+        .str.strip()
+        .replace("", pd.NA)
+        .dropna()
+        .value_counts()
+        .head(limit)
+        .index.tolist()
+    )
+    return [str(brand) for brand in brands]
+
+
+def _fallback_knowledge_hits(knowledge: pd.DataFrame, limit: int = 4) -> list[dict[str, str]]:
+    if knowledge.empty or "text" not in knowledge:
+        return [
+            {
+                "source": "Demo rulebook",
+                "text": "请上传完整知识库 zip 后查看报告证据。当前机会点展示为规则引擎样例输出。",
+            }
+        ]
+
+    keywords = ["机会", "小屏", "大电池", "耐用", "游戏", "AI", "5G", "影像"]
+    mask = knowledge["text"].astype(str).map(lambda text: any(keyword in text for keyword in keywords))
+    scoped = knowledge[mask].head(limit)
+    if scoped.empty:
+        scoped = knowledge.head(limit)
+    return scoped[["source", "text"]].to_dict("records")
+
+
 def dimension_scores(ratings: pd.DataFrame) -> pd.DataFrame:
     records = []
     for key, (score_col, _, _, label) in DIMENSIONS.items():
@@ -130,6 +163,8 @@ def review_examples(reviews: pd.DataFrame, limit: int = 5) -> list[dict[str, str
 
 def generate_opportunities(demo: DemoInput, data: dict[str, Any]) -> list[dict[str, Any]]:
     ratings = filter_ratings(data["ratings"], demo)
+    if ratings.empty:
+        ratings = data["ratings"].copy()
     reviews = filter_reviews(data["reviews"], demo)
     knowledge = data["knowledge"]
     knowledge_hits = search_knowledge(knowledge, " ".join(demo.focus) + " 小屏 轻薄 大电池 耐用 游戏 AI 5G")
@@ -137,15 +172,26 @@ def generate_opportunities(demo: DemoInput, data: dict[str, Any]) -> list[dict[s
     brands = brand_distribution(ratings)
 
     top_brands = brands["brand"].head(5).tolist() if not brands.empty else []
+    if not top_brands:
+        top_brands = _matrix_brands(data.get("product_matrix", pd.DataFrame()))
+    if not top_brands:
+        top_brands = ["Samsung", "realme", "TECNO", "OPPO", "Motorola"]
+
     top_pains = pains["dimension"].head(3).tolist() if not pains.empty else []
+    if not top_pains:
+        top_pains = ["续航 / 电池", "影像 / 相机", "性能 / 游戏"]
+
+    knowledge_evidence = (
+        knowledge_hits[["source", "text"]].head(4).to_dict("records")
+        if not knowledge_hits.empty
+        else _fallback_knowledge_hits(knowledge)
+    )
 
     base_evidence = {
         "price_band": demo.price_band,
         "top_brands": top_brands,
         "top_pain_points": top_pains,
-        "knowledge_hits": knowledge_hits[["source", "text"]].head(4).to_dict("records")
-        if not knowledge_hits.empty
-        else [],
+        "knowledge_hits": knowledge_evidence,
     }
 
     return [
@@ -239,4 +285,3 @@ def api_trace(demo: DemoInput, opportunity_id: str = "OPP-IN-001") -> list[dict[
             "purpose": "生成产品定位、配置和营销建议",
         },
     ]
-

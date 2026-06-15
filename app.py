@@ -44,6 +44,15 @@ def save_uploaded_zip(uploaded_file) -> str:
     return str(target)
 
 
+def find_local_source_zip() -> Path | None:
+    candidates = [
+        DEFAULT_ZIP,
+        Path(__file__).resolve().parent / "data" / "GPIPS系统数据库与知识库.zip",
+        Path.home() / "Downloads" / "GPIPS系统数据库与知识库.zip",
+    ]
+    return next((path for path in candidates if path.exists()), None)
+
+
 def section_label(step: str, title: str, subtitle: str) -> None:
     st.markdown(f"### {step} {title}")
     st.caption(subtitle)
@@ -78,9 +87,9 @@ def render_opportunity_card(opportunity: dict, expanded: bool = False) -> None:
             evidence = opportunity["evidence"]
             st.metric("Price Band", evidence["price_band"])
             st.write("**Top Brands**")
-            st.write(", ".join(evidence["top_brands"]) or "No data")
+            st.write(", ".join(evidence["top_brands"]))
             st.write("**Top User Pain Points**")
-            st.write(", ".join(evidence["top_pain_points"]) or "No data")
+            st.write(", ".join(evidence["top_pain_points"]))
             st.write("**Knowledge Evidence**")
             for hit in evidence["knowledge_hits"][:3]:
                 st.caption(hit["source"])
@@ -114,12 +123,16 @@ st.caption("Data Layer → Knowledge Layer → Insight Engine → Opportunity Po
 with st.sidebar:
     st.header("Demo Input")
     uploaded_zip = st.file_uploader("Upload source zip", type=["zip"])
+    local_source_zip = find_local_source_zip()
     if uploaded_zip is not None:
         zip_path = save_uploaded_zip(uploaded_zip)
         st.success("Using uploaded ZIP")
+    elif local_source_zip is not None:
+        zip_path = str(local_source_zip)
+        st.success("Using local source ZIP")
     else:
-        zip_path = st.text_input("Source zip", value=str(DEFAULT_ZIP))
-        st.caption("Local default path is for your Mac. On Streamlit Cloud, upload the ZIP above.")
+        zip_path = None
+        st.info("Upload `GPIPS系统数据库与知识库.zip` to start the demo.")
     market = st.selectbox("Market", ["India"], index=0)
     price_band_label = st.selectbox("Price Band", ["10K-15K INR", "15K-20K INR", "20K-30K INR"], index=1)
     price_map = {
@@ -150,9 +163,22 @@ demo = DemoInput(
 )
 
 try:
+    if zip_path is None:
+        st.info("请在左侧上传 `GPIPS系统数据库与知识库.zip`。上传后系统会自动解析数据，并生成机会点 Demo。")
+        st.markdown(
+            """
+            **上传后会展示：**
+            - Data Layer：产品评分、评论、产品矩阵和 IDC 数据
+            - Knowledge Layer：印度市场报告与机会点证据
+            - Insight Engine：规则引擎生成机会点
+            - Recommendation：推荐产品方向和配置 brief
+            """
+        )
+        st.stop()
     data = cached_load(zip_path)
 except Exception as exc:
-    st.error(f"数据加载失败：{exc}")
+    st.error("数据加载失败。请确认上传的是完整的 `GPIPS系统数据库与知识库.zip`。")
+    st.caption(str(exc))
     st.stop()
 
 ratings = filter_ratings(data["ratings"], demo)
@@ -176,6 +202,21 @@ metric_cols[1].metric("India Reviews", f"{len(reviews):,}")
 metric_cols[2].metric("Product Matrix", f"{len(product_matrix):,}")
 metric_cols[3].metric("Knowledge Chunks", f"{len(knowledge):,}")
 metric_cols[4].metric("Opportunities", f"{len(opportunities)}")
+
+if len(all_ratings) == 0 or len(knowledge) == 0:
+    st.warning("数据已读取，但核心表为空。请确认上传的是原始完整 zip，而不是解压后的文件夹或单个 Excel。")
+
+with st.expander("Data Health", expanded=False):
+    st.write(
+        {
+            "ratings_rows": len(all_ratings),
+            "selected_price_band_rows": len(ratings),
+            "review_rows_total": len(all_reviews),
+            "india_review_rows": len(reviews),
+            "product_matrix_rows": len(product_matrix),
+            "knowledge_chunks": len(knowledge),
+        }
+    )
 
 tab_guided, tab_market, tab_knowledge, tab_pool, tab_api = st.tabs(
     ["Guided Demo", "Market Data", "Knowledge Search", "Opportunity Pool", "API Trace"]
