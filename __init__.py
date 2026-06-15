@@ -1,2 +1,0 @@
-"""GPIPS India demo package."""
-
