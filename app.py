@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import hashlib
 import json
+import tempfile
 
 import pandas as pd
 import streamlit as st
@@ -31,6 +33,15 @@ st.set_page_config(
 @st.cache_data(show_spinner=False)
 def cached_load(zip_path: str) -> dict:
     return load_all(Path(zip_path))
+
+
+def save_uploaded_zip(uploaded_file) -> str:
+    raw = uploaded_file.getvalue()
+    digest = hashlib.sha256(raw).hexdigest()[:12]
+    target = Path(tempfile.gettempdir()) / f"gpips_source_{digest}.zip"
+    if not target.exists():
+        target.write_bytes(raw)
+    return str(target)
 
 
 def section_label(step: str, title: str, subtitle: str) -> None:
@@ -102,7 +113,13 @@ st.caption("Data Layer → Knowledge Layer → Insight Engine → Opportunity Po
 
 with st.sidebar:
     st.header("Demo Input")
-    zip_path = st.text_input("Source zip", value=str(DEFAULT_ZIP))
+    uploaded_zip = st.file_uploader("Upload source zip", type=["zip"])
+    if uploaded_zip is not None:
+        zip_path = save_uploaded_zip(uploaded_zip)
+        st.success("Using uploaded ZIP")
+    else:
+        zip_path = st.text_input("Source zip", value=str(DEFAULT_ZIP))
+        st.caption("Local default path is for your Mac. On Streamlit Cloud, upload the ZIP above.")
     market = st.selectbox("Market", ["India"], index=0)
     price_band_label = st.selectbox("Price Band", ["10K-15K INR", "15K-20K INR", "20K-30K INR"], index=1)
     price_map = {
